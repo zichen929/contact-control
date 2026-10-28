@@ -72,8 +72,19 @@ sensor-to-base system only rotates the vector. A separate gain of -1 converts
 base force to robot-on-environment force for controller feedback and CSV logs.
 Controller feedback is clamped
 to +/-5 N on x/y and +/-20 N on z; this is not a contact-force or output-torque limit.
-No automatic tare or
-payload compensation is applied. Measured moments are not used.
+The `t` command tares the F/T sensor after the robot reaches the target and
+before accepting the next command. Payload compensation is not applied.
+Measured moments are not used.
+
+Contact CSV logs preserve the original twelve velocity/force columns and append:
+`time_s` (steady-clock seconds since the first logged sample),
+`fsensor_x/y/z` (sensor-frame environment-on-robot force in N, including any tare),
+`q1` through `q4` or `q7` (joint positions in radians, depending on robot DOF),
+and `R_world_tool_00` through `R_world_tool_22` (row-major tool-to-world rotation).
+The rotation is the exact matrix used by the force conversion; world equals base
+when `world_to_base` is identity. Thus logged force satisfies
+`fcur = -R_world_tool * fsensor`, before feedback clamping.
+Each new contact log restarts `time_s` at zero. Existing CSV files are unchanged.
 
 Build with `cmake -S . -B build` and
 `cmake --build build --target hybrid_control_ft`. The executable is

@@ -167,15 +167,21 @@ int wam_main(int argc, char** argv, barrett::ProductManager& pm, barrett::system
     base_vector_velocity_type,
     base_vector_velocity_type,
     base_vector_force_type,
-    base_vector_force_type> hybrid_base_log_grouper_t;
+    base_vector_force_type,
+    cf_type,
+    jp_type,
+    typename SensorForceToBase<DOF>::rotation_type> hybrid_base_log_grouper_t;
     hybrid_base_log_grouper_t hybridBaseLogGroup("HybridBaseLogGroup");
     pm.getExecutionManager()->startManaging(hybridBaseLogGroup);
-    typedef hybrid_base_log_grouper_t::tuple_type hybrid_base_log_record_t;
+    typedef typename hybrid_base_log_grouper_t::tuple_type hybrid_base_log_record_t;
 
-    barrett::systems::connect(desiredVelocityTraj.output, hybridBaseLogGroup.getInput<0>());
-    barrett::systems::connect(baseVelocity.output, hybridBaseLogGroup.getInput<1>());
-    barrett::systems::connect(desiredForceSource.output, hybridBaseLogGroup.getInput<2>());
-    barrett::systems::connect(baseForce.output, hybridBaseLogGroup.getInput<3>());
+    barrett::systems::connect(desiredVelocityTraj.output, hybridBaseLogGroup.template getInput<0>());
+    barrett::systems::connect(baseVelocity.output, hybridBaseLogGroup.template getInput<1>());
+    barrett::systems::connect(desiredForceSource.output, hybridBaseLogGroup.template getInput<2>());
+    barrett::systems::connect(baseForce.output, hybridBaseLogGroup.template getInput<3>());
+    barrett::systems::connect(measuredForce.output, hybridBaseLogGroup.template getInput<4>());
+    barrett::systems::connect(wam.jpOutput, hybridBaseLogGroup.template getInput<5>());
+    barrett::systems::connect(sensorForceToBase.rotationOutput, hybridBaseLogGroup.template getInput<6>());
 
     const size_t kHybridLogPeriodMult = tuning.logPeriod;
 
@@ -184,7 +190,7 @@ int wam_main(int argc, char** argv, barrett::ProductManager& pm, barrett::system
     bool contactActive = false;
 
     std::cout << "\nCommands:\n";
-    std::cout << "  t : move to target\n";
+    std::cout << "  t : move to target and zero F/T sensor\n";
     std::cout << "  c : start contact controller\n";
     std::cout << "  x : stop contact controller\n";
     std::cout << "  ENTER : move home\n";
@@ -267,7 +273,12 @@ int wam_main(int argc, char** argv, barrett::ProductManager& pm, barrett::system
 
                 std::cout << "Moving to target..." << std::endl;
                 wam.moveTo(target, true);
-                std::cout << "At target." << std::endl;
+                std::cout << "At target. Zeroing F/T sensor..." << std::endl;
+                {
+                    BARRETT_SCOPED_LOCK(em->getMutex());
+                    pm.getForceTorqueSensor()->tare();
+                }
+                std::cout << "F/T sensor zeroed." << std::endl;
                 break;
 
 
