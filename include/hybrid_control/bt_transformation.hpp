@@ -128,9 +128,10 @@ public:
 protected:
     typename Output<task_vector_force_type>::Value* outputValue;
     task_vector_force_type limit_;
+    task_vector_force_type f;
 
     virtual void operate() {
-        task_vector_force_type f = input.getValue();
+        f = input.getValue();
 
         for (size_t i = 0; i < 3; ++i) {
             // NaN protection

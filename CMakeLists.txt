@@ -45,7 +45,27 @@ endfunction()
 # -----------------------------
 add_programs(
   hybrid_control
+  hybrid_control_ft
 )
+
+# Installed libbarrett/libconfig headers use pre-C++17 exception specifications.
+set_property(TARGET hybrid_control hybrid_control_ft APPEND_STRING PROPERTY COMPILE_FLAGS " -std=c++14")
+set_property(TARGET hybrid_control_ft APPEND PROPERTY COMPILE_DEFINITIONS
+  HYBRID_CONTROL_FT_DEFAULT_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/config/hybrid_control_ft.conf")
+
+option(CONTACT_CONTROL_BUILD_TESTS "Build hardware-free controller tests" OFF)
+if(CONTACT_CONTROL_BUILD_TESTS)
+  enable_testing()
+  add_executable(planar_joint_torque_test tests/planar_joint_torque.cpp)
+  target_link_libraries(planar_joint_torque_test ${BARRETT_LIBRARIES})
+  set_property(TARGET planar_joint_torque_test APPEND_STRING PROPERTY COMPILE_FLAGS " -std=c++14 -UNDEBUG")
+  add_test(NAME planar_joint_torque COMMAND planar_joint_torque_test)
+  add_executable(controller_config_test tests/controller_config.cpp)
+  target_link_libraries(controller_config_test ${BARRETT_LIBRARIES})
+  set_property(TARGET controller_config_test APPEND_STRING PROPERTY COMPILE_FLAGS " -std=c++14")
+  add_test(NAME controller_config COMMAND controller_config_test
+    "${CMAKE_CURRENT_SOURCE_DIR}/config/hybrid_control_ft.conf")
+endif()
 
 # Plotting-only executable
 # add_executable(compare_torque src/compare_torque.cpp)
