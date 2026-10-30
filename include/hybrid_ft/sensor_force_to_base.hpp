@@ -2,7 +2,7 @@
 
 #include <barrett/systems.h>
 
-namespace hybrid_control_ft {
+namespace hybrid_ft {
 
 // Sensor axes equal tool axes. World equals base for the identity
 // world_to_base configuration. Preserve environment-on-robot force sign.
@@ -42,4 +42,4 @@ public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
 
-}  // namespace hybrid_control_ft
+}  // namespace hybrid_ft

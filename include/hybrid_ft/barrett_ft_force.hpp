@@ -3,7 +3,7 @@
 #include <barrett/products/force_torque_sensor.h>
 #include <barrett/systems.h>
 
-namespace hybrid_control_ft {
+namespace hybrid_ft {
 
 // Read environment-on-robot force in sensor coordinates once per cycle.
 // No rotation, sign change, automatic tare, or payload compensation. Moments are unused.
@@ -38,4 +38,4 @@ public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
 
-}  // namespace hybrid_control_ft
+}  // namespace hybrid_ft

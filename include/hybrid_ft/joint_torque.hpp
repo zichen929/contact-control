@@ -3,7 +3,7 @@
 #include <barrett/detail/ca_macro.h>
 #include <barrett/systems.h>
 
-namespace hybrid_control_ft {
+namespace hybrid_ft {
 
 template <size_t DOF>
 class BaseControlToJointTorque : public barrett::systems::System {
@@ -104,4 +104,4 @@ class BaseControlToJointTorque : public barrett::systems::System {
 
 
 
-}  // namespace hybrid_control_ft
+}  // namespace hybrid_ft

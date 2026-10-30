@@ -4,7 +4,7 @@
 #include <barrett/systems.h>
 #include <barrett/units.h>
 
-namespace hybrid_control_ft {
+namespace hybrid_ft {
 
 template <size_t DOF>
 class ToolJacobianOutput : public barrett::systems::System {
@@ -43,4 +43,4 @@ class ToolJacobianOutput : public barrett::systems::System {
   private:
     DISALLOW_COPY_AND_ASSIGN(ToolJacobianOutput);
 };
-}  // namespace hybrid_control_ft
+}  // namespace hybrid_ft

@@ -3,7 +3,7 @@
 #include <cmath>
 #include <barrett/systems.h>
 
-namespace hybrid_control_ft {
+namespace hybrid_ft {
 
 template <size_t DOF>
 class ForceClamp : public barrett::systems::System {
@@ -47,4 +47,4 @@ protected:
 
 
 
-}  // namespace hybrid_control_ft
+}  // namespace hybrid_ft

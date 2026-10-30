@@ -1,11 +1,13 @@
-#include "hybrid_control_ft/barrett_ft_force.hpp"
-#include "hybrid_control_ft/sensor_force_to_base.hpp"
-#include "hybrid_control_ft/jacobian.hpp"
-#include "hybrid_control_ft/references.hpp"
-#include "hybrid_control_ft/force_clamp.hpp"
-#include "hybrid_control_ft/base_frame_controller.hpp"
-#include "hybrid_control_ft/joint_torque.hpp"
-#include "hybrid_control_ft/csv_logger.hpp"
+#include "hybrid_fv_ft/velocity_reference.hpp"
+#include "hybrid_ft/barrett_ft_force.hpp"
+#include "hybrid_ft/sensor_force_to_base.hpp"
+#include "hybrid_ft/jacobian.hpp"
+#include "hybrid_ft/constant_output.hpp"
+#include "hybrid_ft/force_clamp.hpp"
+#include "hybrid_ft/force_low_pass.hpp"
+#include "hybrid_fv_ft/controller.hpp"
+#include "hybrid_ft/joint_torque.hpp"
+#include "hybrid_ft/csv_logger.hpp"
 
 #include <barrett/systems/tuple_grouper.h>
 #include <barrett/systems.h>
@@ -26,11 +28,11 @@
 
 namespace {
 
-/** Ensures data dir exists; path hybrid_base_ft_datalog_NNNN.csv (NNNN = 1 + max existing .csv). */
+/** Ensures data dir exists; path hybrid_fv_ft_datalog_NNNN.csv (NNNN = 1 + max existing .csv). */
 std::string nextHybridBaseLogPath(const std::string& directory)
 {
     const char* dataDir = directory.c_str();
-    const char* prefix = "hybrid_base_ft_datalog_";
+    const char* prefix = "hybrid_fv_ft_datalog_";
     mkdir(dataDir, 0755);
 
     int maxN = 0;
@@ -68,14 +70,15 @@ std::string nextHybridBaseLogPath(const std::string& directory)
 template<size_t DOF>
 int wam_main(int argc, char** argv, barrett::ProductManager& pm, barrett::systems::Wam<DOF>& wam)
 {
-    using namespace hybrid_control_ft;
+    using namespace hybrid_ft;
+    using namespace hybrid_fv_ft;
     BARRETT_UNITS_TEMPLATE_TYPEDEFS(DOF);
     typedef typename barrett::math::Vector<3>::type base_vector_force_type;
     typedef typename barrett::math::Vector<3>::type base_vector_velocity_type;
 
-    const char* configOverride = std::getenv("HYBRID_CONTROL_FT_CONFIG");
+    const char* configOverride = std::getenv("HYBRID_FV_FT_CONFIG");
     const std::string tuningPath = configOverride && configOverride[0]
-        ? configOverride : HYBRID_CONTROL_FT_DEFAULT_CONFIG;
+        ? configOverride : HYBRID_FV_FT_DEFAULT_CONFIG;
     ControllerConfig tuning;
     try {
         tuning = ControllerConfig::load(tuningPath);
@@ -92,6 +95,7 @@ int wam_main(int argc, char** argv, barrett::ProductManager& pm, barrett::system
         return 1;
     }
     std::cout << "Tuning config: " << tuningPath << std::endl;
+    std::cout << "Velocity pattern: " << tuning.velocityPattern << std::endl;
 
     if (DOF < 4) {
         std::cerr << "Planar control requires joints 2 and 4." << std::endl;
@@ -131,12 +135,14 @@ int wam_main(int argc, char** argv, barrett::ProductManager& pm, barrett::system
     base_vector_force_type desiredForce;
     for (int i = 0; i < 3; ++i) desiredForce[i] = tuning.desiredForce[i];
 
-    BaseVelocitySinusoid<base_vector_velocity_type> desiredVelocityTraj(
+    BaseVelocityReference<base_vector_velocity_type> desiredVelocityTraj(
         pm.getExecutionManager(), tuning.velocityAxis, tuning.peakVelocity, tuning.velocityPeriod,
+        tuning.velocityPattern == "move", tuning.velocityDistance, tuning.velocityDuration,
         "DesiredVelTraj");
 
     base_vector_force_type force_limit;
     for (int i = 0; i < 3; ++i) force_limit[i] = tuning.forceLimit[i];
+    ForceLowPass forceFilter(pm.getExecutionManager(), tuning.forceFilterCutoffHz);
     ForceClamp<DOF> forceClamp(pm.getExecutionManager(), force_limit);
 
     ConstantOutput<base_vector_force_type> desiredForceSource(pm.getExecutionManager(), desiredForce, "DesiredForce");
@@ -144,7 +150,8 @@ int wam_main(int argc, char** argv, barrett::ProductManager& pm, barrett::system
     barrett::systems::connect(desiredVelocityTraj.output, hybridControl.desiredVelocityIn);
     barrett::systems::connect(desiredForceSource.output, hybridControl.desiredForceIn);
     barrett::systems::connect(baseVelocity.output, hybridControl.currentVelocityIn);
-    barrett::systems::connect(baseForce.output, forceClamp.input);
+    barrett::systems::connect(baseForce.output, forceFilter.input);
+    barrett::systems::connect(forceFilter.output, forceClamp.input);
     barrett::systems::connect(forceClamp.output, hybridControl.currentForceIn);
 
 
@@ -170,7 +177,7 @@ int wam_main(int argc, char** argv, barrett::ProductManager& pm, barrett::system
     base_vector_force_type,
     cf_type,
     jp_type,
-    typename SensorForceToBase<DOF>::rotation_type> hybrid_base_log_grouper_t;
+    typename SensorForceToBase<DOF>::rotation_type, cp_type, cp_type, base_vector_force_type> hybrid_base_log_grouper_t;
     hybrid_base_log_grouper_t hybridBaseLogGroup("HybridBaseLogGroup");
     pm.getExecutionManager()->startManaging(hybridBaseLogGroup);
     typedef typename hybrid_base_log_grouper_t::tuple_type hybrid_base_log_record_t;
@@ -183,9 +190,14 @@ int wam_main(int argc, char** argv, barrett::ProductManager& pm, barrett::system
     barrett::systems::connect(wam.jpOutput, hybridBaseLogGroup.template getInput<5>());
     barrett::systems::connect(sensorForceToBase.rotationOutput, hybridBaseLogGroup.template getInput<6>());
 
+    barrett::systems::connect(desiredVelocityTraj.positionOutput, hybridBaseLogGroup.template getInput<7>());
+    barrett::systems::connect(wam.toolPosition.output, hybridBaseLogGroup.template getInput<8>());
+
+    barrett::systems::connect(forceFilter.output, hybridBaseLogGroup.template getInput<9>());
+
     const size_t kHybridLogPeriodMult = tuning.logPeriod;
 
-    HybridBaseCsvLogger<hybrid_base_log_record_t>* hybridBaseLogger = NULL;
+    HybridBaseCsvLogger<hybrid_base_log_record_t, true, true>* hybridBaseLogger = NULL;
 
     bool contactActive = false;
 
@@ -211,7 +223,7 @@ int wam_main(int argc, char** argv, barrett::ProductManager& pm, barrett::system
 
     auto startHybridDatalog = [&]() {
         const std::string logPath = nextHybridBaseLogPath(tuning.logDirectory);
-        hybridBaseLogger = new HybridBaseCsvLogger<hybrid_base_log_record_t>(
+        hybridBaseLogger = new HybridBaseCsvLogger<hybrid_base_log_record_t, true, true>(
             em, logPath, kHybridLogPeriodMult, "HybridBaseCsvLogger");
         barrett::systems::forceConnect(hybridBaseLogGroup.output, hybridBaseLogger->input);
         std::cout << "CSV datalog (base frame) -> " << logPath << std::endl;
@@ -277,6 +289,7 @@ int wam_main(int argc, char** argv, barrett::ProductManager& pm, barrett::system
                 {
                     BARRETT_SCOPED_LOCK(em->getMutex());
                     pm.getForceTorqueSensor()->tare();
+                    forceFilter.reset();
                 }
                 std::cout << "F/T sensor zeroed." << std::endl;
                 break;
@@ -286,14 +299,14 @@ int wam_main(int argc, char** argv, barrett::ProductManager& pm, barrett::system
                 if (!contactActive) {
                     std::cout << "Starting contact controller..." << std::endl;
 
-                    hybridControl.resetState();
-                    desiredVelocityTraj.resetPhase();
 
-                    startHybridDatalog();
 
 
                     {
                         BARRETT_SCOPED_LOCK(em->getMutex());
+                        hybridControl.resetState();
+                        desiredVelocityTraj.resetPhase(wam.getToolPosition());
+                        startHybridDatalog();
                         controlToJoint.setHoldPosition(wam.getJointPositions());
                         wam.trackReferenceSignal(controlToJoint.jointTorqueOut);
                     }

@@ -45,17 +45,34 @@ endfunction()
 # -----------------------------
 add_programs(
   hybrid_control
-  hybrid_control_ft
+  hybrid_fv_ft
+  hybrid_fp_ft
 )
 
 # Installed libbarrett/libconfig headers use pre-C++17 exception specifications.
-set_property(TARGET hybrid_control hybrid_control_ft APPEND_STRING PROPERTY COMPILE_FLAGS " -std=c++14")
-set_property(TARGET hybrid_control_ft APPEND PROPERTY COMPILE_DEFINITIONS
-  HYBRID_CONTROL_FT_DEFAULT_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/config/hybrid_control_ft.conf")
+set_property(TARGET hybrid_control hybrid_fv_ft hybrid_fp_ft APPEND_STRING PROPERTY COMPILE_FLAGS " -std=c++14")
+set_property(TARGET hybrid_fv_ft APPEND PROPERTY COMPILE_DEFINITIONS
+  HYBRID_FV_FT_DEFAULT_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/config/hybrid_fv_ft.conf")
+
+set_property(TARGET hybrid_fp_ft APPEND PROPERTY COMPILE_DEFINITIONS
+  HYBRID_FP_FT_DEFAULT_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/config/hybrid_fp_ft.conf")
 
 option(CONTACT_CONTROL_BUILD_TESTS "Build hardware-free controller tests" OFF)
 if(CONTACT_CONTROL_BUILD_TESTS)
   enable_testing()
+  add_executable(force_low_pass_test tests/force_low_pass.cpp)
+  target_link_libraries(force_low_pass_test ${BARRETT_LIBRARIES})
+  set_property(TARGET force_low_pass_test APPEND_STRING PROPERTY COMPILE_FLAGS " -std=c++14 -UNDEBUG")
+  add_test(NAME force_low_pass COMMAND force_low_pass_test)
+  add_executable(velocity_reference_test tests/velocity_reference.cpp)
+  target_link_libraries(velocity_reference_test ${BARRETT_LIBRARIES})
+  set_property(TARGET velocity_reference_test APPEND_STRING PROPERTY COMPILE_FLAGS " -std=c++14 -UNDEBUG")
+  add_test(NAME velocity_reference COMMAND velocity_reference_test)
+  add_executable(force_position_test tests/force_position.cpp)
+  target_link_libraries(force_position_test ${BARRETT_LIBRARIES})
+  set_property(TARGET force_position_test APPEND_STRING PROPERTY COMPILE_FLAGS " -std=c++14 -UNDEBUG")
+  add_test(NAME force_position COMMAND force_position_test
+    "${CMAKE_CURRENT_SOURCE_DIR}/config/hybrid_fp_ft.conf")
   add_executable(planar_joint_torque_test tests/planar_joint_torque.cpp)
   target_link_libraries(planar_joint_torque_test ${BARRETT_LIBRARIES})
   set_property(TARGET planar_joint_torque_test APPEND_STRING PROPERTY COMPILE_FLAGS " -std=c++14 -UNDEBUG")
@@ -64,7 +81,7 @@ if(CONTACT_CONTROL_BUILD_TESTS)
   target_link_libraries(controller_config_test ${BARRETT_LIBRARIES})
   set_property(TARGET controller_config_test APPEND_STRING PROPERTY COMPILE_FLAGS " -std=c++14")
   add_test(NAME controller_config COMMAND controller_config_test
-    "${CMAKE_CURRENT_SOURCE_DIR}/config/hybrid_control_ft.conf")
+    "${CMAKE_CURRENT_SOURCE_DIR}/config/hybrid_fv_ft.conf")
 endif()
 
 # Plotting-only executable

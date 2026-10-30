@@ -1,4 +1,4 @@
-#include "hybrid_control_ft/joint_torque.hpp"
+#include "hybrid_ft/joint_torque.hpp"
 #include <cassert>
 #include <cmath>
 
@@ -6,7 +6,7 @@
 // and position-hold errors cannot alter the two planar joint commands.
 template <size_t DOF>
 void checkPlanarTorque() {
-    typedef hybrid_control_ft::BaseControlToJointTorque<DOF> Controller;
+    typedef hybrid_ft::BaseControlToJointTorque<DOF> Controller;
     typename Controller::jacobian_type J;
     J.setOnes();
     typename Controller::base_control_type force;

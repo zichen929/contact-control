@@ -1,12 +1,14 @@
 #pragma once
 
 #include <algorithm>
-#include "controller_config.hpp"
+#include "hybrid_ft/controller_config.hpp"
 
 #include <barrett/detail/ca_macro.h>
 #include <barrett/systems.h>
 
-namespace hybrid_control_ft {
+namespace hybrid_fv_ft {
+
+using hybrid_ft::ControllerConfig;
 
 template <size_t DOF>
 class HybridForceVelocityControl : public barrett::systems::System {
@@ -184,4 +186,4 @@ class HybridForceVelocityControl : public barrett::systems::System {
 };
 
 
-}  // namespace hybrid_control_ft
+}  // namespace hybrid_fv_ft
